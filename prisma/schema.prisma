@@ -1,0 +1,259 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationships
+  preferences     UserPreferences?
+  tasks           Task[]
+  calendarEvents  CalendarEvent[]
+  emails          Email[]
+  chatMessages    ChatMessage[]
+  apiKeys         ApiKey[]
+  agentExecutions AgentExecution[]
+  documents       Document[]
+  webSearches     WebSearch[]
+}
+
+model UserPreferences {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // JARVIS Personality Settings
+  formalityLevel   Int      @default(7)  // 1-10 scale
+  humorLevel       Int      @default(6)  // 1-10 scale
+  britishAccent    Boolean  @default(true)
+  
+  // Voice Settings
+  sttEnabled       Boolean  @default(true)
+  ttsEnabled       Boolean  @default(true)
+  
+  // LLM Settings
+  temperature      Float    @default(0.7)
+  maxTokens        Int      @default(1000)
+  
+  // UI Preferences
+  theme            String   @default("system")  // light, dark, system
+  fontSize         Int      @default(16)
+  
+  // Google Integration
+  googleEmail      String?  // Associated Google email address
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  serviceName String   // e.g., "openai", "google", "anthropic"
+  encryptedKey String  // Encrypted API key
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, serviceName])
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title         String
+  description   String?
+  priority      Priority @default(MEDIUM)
+  status        TaskStatus @default(PENDING)
+  dueDate       DateTime?
+  completedAt   DateTime?
+  
+  // Enhanced task features
+  estimatedTime Int?     // Estimated completion time in minutes
+  actualTime    Int?     // Actual time taken in minutes
+  parentId      String?  // For subtasks
+  parent        Task?    @relation("TaskSubtasks", fields: [parentId], references: [id])
+  subtasks      Task[]   @relation("TaskSubtasks")
+  isArchived    Boolean  @default(false)
+  archivedAt    DateTime?
+  reminderTime  DateTime?
+  reminderSent  Boolean  @default(false)
+  
+  // AI-generated features
+  aiBreakdown   String?  // JSON array of suggested subtasks
+  aiFollowups   String?  // JSON array of suggested follow-up tasks
+  aiEstimate    Int?     // AI-estimated time in minutes
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([userId, status])
+  @@index([userId, parentId])
+  @@index([userId, isArchived])
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  location    String?
+  attendees   String?  // JSON array of attendees
+  externalId  String?  // ID from external calendar service
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Email {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  subject     String
+  body        String
+  recipients  String   // JSON array of email addresses
+  cc          String?  // JSON array of CC recipients
+  bcc         String?  // JSON array of BCC recipients
+  status      EmailStatus @default(DRAFT)
+  externalId  String?  // ID from external email service
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role        MessageRole  // USER, ASSISTANT, SYSTEM
+  content     String
+  type        MessageType @default(TEXT)  // TEXT, LINK, TASK_LIST, CALENDAR_VIEW
+  metadata    String?  // JSON for additional data
+  
+  createdAt   DateTime @default(now())
+}
+
+model AgentExecution {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  agentType   AgentType
+  command     String
+  intent      String?
+  parameters  String?  // JSON parameters
+  result      String?  // JSON result
+  status      ExecutionStatus @default(PENDING)
+  error       String?
+  
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  title       String
+  content     String
+  summary     String?
+  type        String   // REPORT, NOTE, etc.
+  tags        String?  // JSON array of tags
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WebSearch {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  query       String
+  results     String   // JSON array of search results
+  summary     String?
+  urls        String?  // JSON array of scraped URLs
+  
+  createdAt   DateTime @default(now())
+}
+
+// Enums
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EmailStatus {
+  DRAFT
+  SENT
+  FAILED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum MessageType {
+  TEXT
+  LINK
+  TASK_LIST
+  CALENDAR_VIEW
+  EMAIL_VIEW
+  DOCUMENT_VIEW
+}
+
+enum AgentType {
+  ORCHESTRATOR
+  COMMAND
+  LLM
+  CALENDAR
+  EMAIL
+  TASK
+  DOC
+  WEB_SEARCH
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
